@@ -1,0 +1,99 @@
+# Post-Processing Pipeline Configuration
+
+# Resource configuration
+memory_multiplier: 1.0
+default_queue: "normal"
+retry_attempts: 3
+
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "pipeline/logs/pipeline.log"
+
+# Job resource requirements (before memory multiplier)
+resources:
+  scrub_assembly:
+    mem_mb: 5000
+    queue: "normal"
+  
+  trim_Ns:
+    mem_mb: 5000
+    queue: "normal"
+  
+  clip_regions:
+    mem_mb: 5000
+    queue: "normal"
+  
+  sum_chrs:
+    mem_mb: 10000
+    queue: "normal"
+  
+  gather_vgp_stats:
+    mem_mb: 10000
+    queue: "normal"
+  
+  gfastats:
+    mem_mb: 10000
+    queue: "normal"
+
+# File paths and directories
+paths:
+  scripts_dir: "pipeline/scripts"
+  output_dir: "output"
+  logs_dir: "pipeline/logs"
+
+# Test configurations
+test_settings:
+  test_ticket: "GRIT-270"
+  test_haploid_ticket: "GRIT-352"
+  test_output_dir: "/lustre/scratch123/tol/teams/grit/test_output"
+
+# Pipeline-specific settings
+pipeline:
+  # Default suffixes
+  initial_haplotig_suffix: "additional_haplotigs"
+  assembly_extensions:
+    - "primary"
+    - "all_haplotigs"
+  
+  # File patterns
+  file_patterns:
+    chromosome_list: "{stem}.{assembly_type}.chromosome.list.csv"
+    unlocalised_list: "{stem}.{assembly_type}.unlocalised.list.tsv"
+    final_fasta: "{stem}.final.fa"
+    trim_log: "{stem}.trim_Ns.out"
+    scrub_log: "{stem}.scrublog"
+
+# Error handling
+error_handling:
+  jira_error_label: "post_processing_error"
+  jira_error_comment: "Post processing failed"
+  abnormal_contamination_label: "abnormal_contamination_report"
+
+# External tools
+external_tools:
+  gfastats:
+    path: "/software/grit/projects/gfastats/gfastats"
+    default_options: "-t --locale en_US.UTF_8"
+
+# Post-processing modes
+modes:
+  - name: "standard"
+    description: "Standard post-processing pipeline"
+    required_files:
+      - "{stem}.primary.curated.fa"
+      - "{stem}.additional_haplotigs.curated.fa"
+      - "{stem}.primary.chromosome.list.csv"
+  
+  - name: "no_chr"
+    description: "Post-processing without chromosome information"
+    required_files:
+      - "{stem}.primary.curated.fa"
+      - "{stem}.additional_haplotigs.curated.fa"
+  
+  - name: "haploid"
+    description: "Post-processing for haploid assemblies"
+    required_files:
+      - "{stem}.primary.curated.fa"
+      - "{stem}.primary.chromosome.list.csv"
