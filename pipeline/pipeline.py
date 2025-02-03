@@ -4,15 +4,33 @@ import os
 import sys
 from typing import Dict, Any
 from pathlib import Path
-import GritJiraIssue
 
 from workflow import PostProcessingWorkflow
 from job_manager import LSFJobManager, LocalJobManager
 from config.config_loader import ConfigLoader
+from utils.env_checker import EnvironmentChecker
 
-def setup_logging(config):
+# Only import JIRA module when needed
+def get_jira_module():
+    try:
+        import GritJiraIssue
+        return GritJiraIssue
+    except ImportError as e:
+        if '--test_env' not in sys.argv:
+            raise e
+        return None
+
+def setup_logging(config=None):
     """Configure logging based on configuration"""
-    logging_config = config.get_logging_config()
+    if config:
+        logging_config = config.get_logging_config()
+    else:
+        # Default logging config for environment testing
+        logging_config = {
+            'level': 'INFO',
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            'file': 'pipeline/logs/pipeline.log'
+        }
     
     # Create logs directory if it doesn't exist
     log_path = Path(logging_config['file']).parent
@@ -29,7 +47,7 @@ def setup_logging(config):
     
     return logging.getLogger(__name__)
 
-def get_input_paths(jira_issue: GritJiraIssue.GritJiraIssue, config: ConfigLoader) -> Dict[str, str]:
+def get_input_paths(jira_issue, config: ConfigLoader) -> Dict[str, str]:
     """Determine input and output paths based on JIRA ticket"""
     working_dir = jira_issue.get_curated_tolid_dir()
     if not os.path.isdir(working_dir):
@@ -59,7 +77,7 @@ def get_input_paths(jira_issue: GritJiraIssue.GritJiraIssue, config: ConfigLoade
     
     return paths
 
-def validate_jira_ticket(jira_issue: GritJiraIssue.GritJiraIssue) -> None:
+def validate_jira_ticket(jira_issue) -> None:
     """Validate JIRA ticket status and labels"""
     if 'abnormal_contamination_report' in jira_issue.get_labels():
         raise ValueError(
@@ -67,14 +85,43 @@ def validate_jira_ticket(jira_issue: GritJiraIssue.GritJiraIssue) -> None:
             'Please address that report and remove the label before post-processing.'
         )
 
+def test_environment() -> bool:
+    """Run environment checks and report results"""
+    logger = setup_logging()
+    logger.info("Running environment checks...")
+    
+    # Initialize environment checker
+    pipeline_root = Path(__file__).parent
+    checker = EnvironmentChecker(pipeline_root)
+    
+    # Run all checks
+    issues = checker.run_all_checks()
+    
+    # Print results
+    checker.print_check_results(issues)
+    
+    return len(issues) == 0
+
 def run_pipeline(args: argparse.Namespace) -> None:
     """Main pipeline execution function"""
+    # Handle environment testing
+    if args.test_env:
+        sys.exit(0 if test_environment() else 1)
+
     # Load configuration
     config = ConfigLoader(args.config)
     logger = setup_logging(config)
     
     try:
-        # Initialize JIRA issue
+        # Test environment before proceeding
+        if not test_environment():
+            raise RuntimeError("Environment check failed. Please fix the issues and try again.")
+
+        # Import and initialize JIRA issue
+        GritJiraIssue = get_jira_module()
+        if not GritJiraIssue:
+            raise ImportError("GritJiraIssue module is required for pipeline execution")
+            
         jira_issue = GritJiraIssue.GritJiraIssue(args.ticket)
         validate_jira_ticket(jira_issue)
         
@@ -91,7 +138,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         workflow.create_post_processing_jobs(input_paths)
         
         # Initialize job manager
-        job_manager = LSFJobManager(default_queue=config.default_queue)
+        job_manager = LSFJobManager(default_queue=config.default_queue) if not args.local else LocalJobManager()
         
         # Run workflow
         success = workflow.run(job_manager)
@@ -116,11 +163,12 @@ def run_pipeline(args: argparse.Namespace) -> None:
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description="Post-processing pipeline")
+    
+    # Make ticket optional if running environment test
     parser.add_argument(
         "--ticket",
         type=str,
-        required=True,
-        help="JIRA ticket identifier"
+        help="JIRA ticket identifier (required unless running --test_env)",
     )
     parser.add_argument(
         "--memory-multiplier",
@@ -138,8 +186,18 @@ def main():
         action="store_true",
         help="Run jobs locally instead of submitting to LSF"
     )
+    parser.add_argument(
+        "--test_env",
+        action="store_true",
+        help="Test the environment for required dependencies and exit"
+    )
     
     args = parser.parse_args()
+    
+    # Validate args
+    if not args.test_env and not args.ticket:
+        parser.error("--ticket is required unless running with --test_env")
+    
     run_pipeline(args)
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+# Task 11: Pipeline Dependencies Analysis
+
+## Original Request
+прочитай файлы и 'old_pipilene_structure_and_dependencies.txt' и файлы в папке 'coding_logs/' ... последний раз мы написали env-test для проверки зависимостей, я пробежался по файлам и вижу что многие библиотеки не могут быть импортированы...
+
+## Analysis Performed
+
+1. Searched for Required Libraries in Old Pipeline:
+   - Located GritJiraIssue.py in snakemake/modules/
+   - Found Taxonomy.py imported by GritJiraIssue
+   - Searched for other required modules (EnaBioSample, NcbiRestAssembly, etc.)
+   
+2. Current Pipeline State:
+   - Reviewed existing requirements.txt
+   - Checked current module structure
+   - Analyzed import dependencies
+   
+3. Identified Dependencies:
+   - Core Python packages (from requirements.txt)
+   - Custom modules from old pipeline
+   - Missing modules that need to be implemented
+
+## Results
+
+1. Available Modules:
+   - GritJiraIssue (copied to pipeline/modules/)
+   - Taxonomy (found in old pipeline, needs copying)
+
+2. Missing Modules:
+   - EnaBioSample
+   - NcbiRestAssembly
+   - NcbiRestBioProject
+   - NcbiEutils
+   - TolSpreadsheet
+
+3. Current Dependencies:
+   - pyyaml>=6.0.1
+   - jira>=3.5.1
+   - pytest>=7.4.0
+   - typing-extensions>=4.7.1
+
+## Actions Taken
+
+1. Created DEPENDENCIES.md:
+   - Documented all required modules
+   - Listed current dependencies
+   - Identified missing components
+   - Provided status and purpose for each module
+   - Added action items for implementation
+
+2. Documentation:
+   - Path: pipeline/DEPENDENCIES.md
+   - Format: Markdown
+   - Sections: Current Dependencies, Required Additional Modules, Action Items, Notes
+
+## Next Steps
+
+1. Copy Taxonomy module from old pipeline to new implementation
+2. Search for missing modules in related repositories
+3. Consider implementing new versions of missing modules
+4. Update requirements.txt as needed
+5. Update env_checker.py to verify all required modules
+
+## Notes
+
+- Created comprehensive documentation of dependencies
+- Identified modules that need to be migrated or implemented
+- Provided clear path forward for resolving missing dependencies
+- Ensured all findings are documented for future reference
+
+## Files Created/Modified
+1. pipeline/DEPENDENCIES.md - Complete dependency documentation
+2. coding_logs/task11.txt - This task log

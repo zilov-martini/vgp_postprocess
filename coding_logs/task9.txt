@@ -1,0 +1,71 @@
+# Task 9: Environment Checking Implementation
+
+## Original Request
+Add code for checking all dependencies in the environment and pipeline folders, add --test_env argument for running verification
+
+## Implementation Summary
+
+### 1. Environment Checker Module
+Created new module `pipeline/utils/env_checker.py` with:
+- Executable dependency checking (gfastats, fastalength, LSF tools)
+- Script presence verification
+- Environment variable validation
+- Python package dependency checking
+- LSF access verification
+- Directory structure validation
+- Comprehensive issue reporting
+
+### 2. Pipeline Integration
+Modified `pipeline.py` to include:
+- New --test_env command line argument
+- Environment testing before pipeline execution
+- Made --ticket optional when running environment tests
+- Enhanced logging for environment checks
+- Integration with EnvironmentChecker class
+
+### 3. Test Coverage
+Created `pipeline/tests/test_env_checker.py` with tests for:
+- Executable checking
+- Script verification
+- Environment variable validation
+- Python package checking
+- LSF access verification
+- Directory structure validation
+- Complete environment check workflow
+
+### Files Created/Modified
+1. pipeline/utils/env_checker.py (new)
+   - EnvironmentChecker class implementation
+   - Comprehensive checking methods
+   - User-friendly output formatting
+
+2. pipeline/pipeline.py (modified)
+   - Added --test_env argument
+   - Integrated environment checking
+   - Enhanced error handling
+
+3. pipeline/tests/test_env_checker.py (new)
+   - Unit tests for EnvironmentChecker
+   - Mock-based testing
+   - Coverage for all check types
+
+## Usage Example
+```bash
+# Test environment only
+python pipeline.py --test_env
+
+# Run pipeline with environment check
+python pipeline.py --ticket GRIT-123 
+```
+
+## Benefits
+1. Early detection of missing dependencies
+2. Clear reporting of issues
+3. Simplified troubleshooting
+4. Consistent environment validation
+5. Prevention of runtime failures
+
+## Next Steps
+1. Update documentation to include environment testing
+2. Consider adding version checking for dependencies
+3. Add more granular dependency specifications

@@ -1,0 +1,72 @@
+# Task 2: Подготовка базовой структуры проекта
+
+## Initial Prompt
+прочитай техническое задание в файле task.txt, результаты предыдущих шагов в в папках coding_* и выполни все шаги на втором этапе - 2. Подготовка базовой структуры проекта. в конце запиши саммари проведенной работы в файл coding_logs/task2.txt включая этот промпт чтобы я его не потерял
+
+## Analysis of Current Structure
+
+The pipeline directory already has a well-organized structure with all necessary components:
+
+### Core Files
+- pipeline.py (main entry point)
+- job_manager.py (LSF job management)
+- workflow.py (workflow orchestration)
+- requirements.txt (dependencies)
+- README.md (documentation)
+
+### Directories
+1. config/
+   - config_loader.py
+   - pipeline_config.yaml
+2. logs/
+   - test_job.log
+3. modules/
+   - GritJiraAuth.py (Jira integration)
+4. scripts/ 
+   - Essential scripts copied from Snakemake pipeline
+5. tests/
+   - test_job_manager.py
+   - test_workflow.py
+
+### Status of Required Components
+
+✓ All main module files exist:
+- workflow.py
+- job_manager.py
+- pipeline.py
+- config_loader.py
+
+✓ All required directories created:
+- config/
+- logs/
+- modules/
+- scripts/
+- tests/
+
+✓ Integration files present:
+- GritJiraAuth.py for Jira integration
+- Test files for core modules
+
+## Completed Steps
+
+1. Verified existing pipeline structure
+2. Copied essential scripts from Snakemake pipeline to pipeline/scripts/:
+   - incorporate_mt.py (mitochondrial DNA processing)
+   - incorporate_mt_and_haps_for_post_processing.py
+   - combine_post_processing_haplotig_files.py
+   - chromosome_audit.py (chromosome validation)
+   - sum_chrs.pl (chromosome statistics)
+   - ncbi_chr_file_to_ena_format.py (format conversion)
+   - submission_text_maker.py (submission preparation)
+   - ready_files_for_submission.py
+   - upload_post_processing_results_to_jira.py (Jira integration)
+
+## Next Steps for Stage 2
+1. Implement core functionality in the existing module files:
+   - config_loader.py: YAML configuration handling
+   - job_manager.py: LSF integration
+   - workflow.py: Task and workflow management
+   - pipeline.py: Main execution logic
+
+## Conclusions
+The basic project structure is complete with all necessary directories and files in place. Essential scripts from the Snakemake pipeline have been copied to the scripts directory. The project is now ready for implementation of core functionality in stage 2.

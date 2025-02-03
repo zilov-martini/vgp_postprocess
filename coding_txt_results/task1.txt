@@ -1,0 +1,143 @@
+# Analysis of post_process_rc.snakefile
+
+## 1. Rules Identified:
+
+1. post_process (main rule)
+2. post_process_genomeark
+3. test
+4. test_haploid
+5. post_process_no_chr
+6. post_process_no_h
+7. post_process_no_h_or_chr
+8. incorporate_mt
+9. combine_post_processing_haplotig_files
+10. scrub_assembly
+11. trim_Ns
+12. clip_regions
+13. sum_chrs
+14. link_pre_curation_file
+15. gather_vgp_stats
+16. gfastats
+17. fastalength_sorted
+18. chr_audit
+19. ncbi_chr_file_to_ena_format
+20. rename_haplotig_chromosome_ena_file
+21. submission_text
+22. submission_text_no_chr
+23. ready_files_for_submission
+24. ready_files_for_submission_no_chr
+25. upload_post_processing_results_to_jira
+26. upload_post_processing_results_to_jira_no_chr
+
+## 2. Rule Dependencies:
+
+### Main Processing Paths:
+
+1. Primary Post-Processing Path:
+   - post_process depends on:
+     - length_files (from fastalength_sorted)
+     - chr_audits (from chr_audit)  
+     - jira_upload_complete_files (from upload_post_processing_results_to_jira)
+     - files_readied_for_submission
+     - n_logs (from trim_Ns)
+
+2. Assembly Processing Path:
+   - incorporate_mt -> scrub_assembly -> trim_Ns -> clip_regions -> fastalength_sorted
+   - scrub_assembly requires unscrubbed.fa
+   - trim_Ns requires untrimmed.fa
+   - clip_regions requires both untrimmed.fa and trim_Ns.out
+
+3. Chromosome Processing Path:
+   - ncbi_chr_file_to_ena_format -> rename_haplotig_chromosome_ena_file
+   - sum_chrs requires final.fa and chromosome.list.csv
+   - chr_audit requires chromosome.list.csv and lengths file
+
+4. Stats Generation Path:
+   - gather_vgp_stats requires pre_curation.fa.gz and final.fa
+   - gfastats requires same inputs as gather_vgp_stats
+
+5. Submission Path:
+   - submission_text requires chromosome_list_tsvs and unlocalised_list_tsvs
+   - ready_files_for_submission depends on multiple files including stats and submission text
+   - upload_post_processing_results_to_jira is final step requiring all previous outputs
+
+## 3. Execution Graph Analysis:
+
+Entry Points:
+- post_process (main workflow)
+- post_process_genomeark (alternative workflow)
+- test/test_haploid (testing workflows)
+- post_process_no_chr/post_process_no_h/post_process_no_h_or_chr (variant workflows)
+
+Core Processing Flow:
+1. File Preparation:
+   incorporate_mt -> combine_post_processing_haplotig_files
+
+2. Assembly Processing:
+   scrub_assembly -> trim_Ns -> clip_regions
+
+3. Analysis:
+   - fastalength_sorted
+   - chr_audit
+   - gather_vgp_stats
+   - gfastats
+
+4. Submission:
+   - submission_text
+   - ready_files_for_submission
+   - upload_post_processing_results_to_jira
+
+## 4. Rule Parameters and Resources:
+
+### Common Parameters:
+- ticket: config["ticket"] (used across multiple rules)
+- script_dir: workflow.basedir + '/' (base directory for scripts)
+- memory_multiplier: config['memory_multiplier'] (default: 1)
+
+### Resource Requirements:
+1. High Memory Rules (10000 * memory_multiplier):
+   - sum_chrs
+   - gather_vgp_stats
+   - gfastats
+
+2. Medium Memory Rules (5000 * memory_multiplier):
+   - incorporate_mt
+   - scrub_assembly
+   - trim_Ns
+   - clip_regions
+
+### Special Parameters:
+- test_argument: Used for test modes
+- no_assembly_haplotigs_parameter: Optional parameter for haplotig processing
+- working_directory: Configurable based on test/production mode
+
+### Input/Output Patterns:
+- Most rules use {stem} wildcard for file naming
+- Common extensions: .fa, .csv, .tsv, .lengths
+- Temporary files marked with temp()
+
+## 5. Error Handling:
+
+The pipeline includes error handling:
+- onerror: Adds 'post_processing_error' label to Jira and adds comment
+- onsuccess: Checks 'important' field and removes error label if exists
+- Input validation for abnormal_contamination_report label
+- Directory existence checking
+
+## 6. Integration Points:
+
+1. Jira Integration:
+   - Uses GritJiraIssue module
+   - Handles ticket management
+   - Uploads results
+   - Manages labels and comments
+
+2. External Tools:
+   - fastalength
+   - gfastats
+   - Various Python/Perl scripts
+
+3. File System Integration:
+   - Works with curated_tolid directory
+   - Handles multiple file formats
+   - Manages temporary and permanent files

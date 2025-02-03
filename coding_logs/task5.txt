@@ -1,0 +1,78 @@
+# Task 5: Implementation of workflow.py
+
+## Original Task
+From task.txt, Этап 2: Базовая реализация, point 3:
+- Реализация workflow.py:
+  * Класс Task для представления отдельной задачи
+  * Класс Workflow для управления зависимостями
+  * Методы добавления задач и проверки зависимостей
+
+## Implementation Summary
+
+Extended and completed workflow.py with comprehensive pipeline support:
+
+### 1. Core Classes
+- Enhanced Job class (Task representation):
+  * Name, command, dependencies tracking
+  * Resource management
+  * Input/output file tracking
+  * Status management
+  * Readiness checking
+
+- Extended PostProcessingWorkflow class:
+  * Complete workflow management
+  * Dependency resolution
+  * Job status tracking
+  * Workflow validation
+  * Improved error handling
+
+### 2. Pipeline Jobs Implementation
+Implemented all jobs from Snakemake pipeline:
+1. incorporate_mt
+2. combine_haplotigs
+3. scrub_assembly
+4. trim_Ns
+5. clip_regions
+6. fastalength_sorted
+7. chr_audit
+8. gather_vgp_stats
+9. gfastats
+10. submission_text
+11. ready_files_for_submission
+12. upload_post_processing_results_to_jira
+
+### 3. Added Features
+- Workflow validation:
+  * Command existence checks
+  * Circular dependency detection
+  * Resource validation
+- Enhanced error handling
+- Improved job monitoring
+- Deadlock detection
+- Comprehensive logging
+
+### 4. Resource Management
+- Memory scaling via multiplier
+- Job-specific resource allocation
+- Queue configuration support
+- Input/output file tracking
+
+### 5. Integration Points
+- LSF job manager integration
+- Configuration system support
+- Jira integration preparation
+- Logging system integration
+
+## Files Modified
+1. pipeline/workflow.py - Complete implementation
+
+## Notes
+- Implementation maintains compatibility with existing job_manager.py
+- Follows exact rule structure from Snakemake pipeline
+- Preserves all dependencies and execution order
+- Added validation to prevent common workflow issues
+
+## Next Steps
+1. Unit tests implementation (Этап 3)
+2. Integration with pipeline.py entry point
+3. Documentation updates

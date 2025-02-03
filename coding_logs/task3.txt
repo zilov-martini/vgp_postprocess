@@ -1,0 +1,54 @@
+# Task 3: Implementation of config_loader.py
+
+## Original Prompt
+прочитай технические требования в файле task.txt, результаты предыдущих шагов в папках coding_* и реализуй config_loader.py
+
+## Implementation Summary
+
+Completed the implementation of config_loader.py with the following features:
+
+1. Configuration Loading
+   - Custom YAML configuration loading
+   - LSF profile integration
+   - Deep dictionary merging support
+   - Default configuration fallbacks
+
+2. Required Fields Validation
+   - assembly_path
+   - species_name
+   - prefix
+   - Type validation for paths
+
+3. LSF Integration
+   - Default LSF settings
+   - Queue configuration
+   - Memory management
+   - Thread control
+   - Log directory handling
+   - Latency and retry settings
+
+4. Resource Management
+   - Memory multiplier support
+   - Job-specific resource configurations
+   - Dynamic memory calculation
+
+5. Directory Structure
+   - Automatic directory creation
+   - Default paths configuration
+   - LSF log directory support
+   - Temporary directory management
+
+6. Error Handling
+   - Custom ConfigurationError exception
+   - Validation error reporting
+   - File loading error handling
+   - Type checking and validation
+
+## Files Modified
+1. pipeline/config/config_loader.py - Complete implementation
+
+## Next Steps
+The implementation of config_loader.py is complete and ready for integration with:
+1. job_manager.py - For LSF job submission
+2. workflow.py - For task configuration and resource allocation
+3. pipeline.py - For overall pipeline configuration
