@@ -54,9 +54,18 @@ class EnvironmentChecker:
             self.required_python_packages.append('jira')
 
     def check_executables(self) -> List[str]:
-        """Check if required executables are available in PATH"""
+        """Check if required executables are available in PATH or scripts directory"""
         missing = []
+        scripts_dir = self.pipeline_root / 'scripts'
+        
         for executable in self.required_executables:
+            # First check in scripts directory
+            if executable == 'gfastats' and (scripts_dir / executable).exists():
+                # Make sure it's executable
+                os.chmod(scripts_dir / executable, 0o755)
+                continue
+                
+            # Then check in PATH
             if not shutil.which(executable):
                 missing.append(executable)
         return missing

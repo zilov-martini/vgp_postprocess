@@ -140,7 +140,7 @@ class PostProcessingWorkflow:
 
             gfastats_job = Job(
                 name="gfastats",
-                command=f"gfastats {input_paths['final_fasta']} > {input_paths['gfastats_out']}",
+                command=f"scripts/gfastats {input_paths['final_fasta']} > {input_paths['gfastats_out']}",
                 dependencies=[clip_job],
                 resources={"mem_mb": 10000 * self.memory_multiplier},
                 input_files=[input_paths['final_fasta']],
