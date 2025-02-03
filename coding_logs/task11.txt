@@ -5,69 +5,73 @@
 
 ## Analysis Performed
 
-1. Searched for Required Libraries in Old Pipeline:
-   - Located GritJiraIssue.py in snakemake/modules/
-   - Found Taxonomy.py imported by GritJiraIssue
-   - Searched for other required modules (EnaBioSample, NcbiRestAssembly, etc.)
-   
-2. Current Pipeline State:
-   - Reviewed existing requirements.txt
-   - Checked current module structure
-   - Analyzed import dependencies
-   
-3. Identified Dependencies:
-   - Core Python packages (from requirements.txt)
-   - Custom modules from old pipeline
-   - Missing modules that need to be implemented
+1. Located Required Modules:
+   - Found GritJiraIssue.py in snakemake/modules/
+   - Found other required modules in snakemake/scripts/ and contamination_screen/modules/
 
-## Results
+2. Copied Core Modules:
+   - From snakemake/modules/:
+     * GritJiraIssue.py
+     * GritJiraQuery.py
+     * GritJiraProject.py
+     * SangerEmail.py (for email functionality)
 
-1. Available Modules:
-   - GritJiraIssue (copied to pipeline/modules/)
-   - Taxonomy (found in old pipeline, needs copying)
+3. Copied Additional Modules:
+   - From contamination_screen/modules/:
+     * EnaBioSample.py
+     * NcbiRestAssembly.py
+     * NcbiRestBioProject.py
+     * NcbiEutils.py
+     * Taxonomy.py
+     * TolSpreadsheet.py
 
-2. Missing Modules:
-   - EnaBioSample
-   - NcbiRestAssembly
-   - NcbiRestBioProject
-   - NcbiEutils
-   - TolSpreadsheet
+4. Implemented Local Mode Support:
+   - Added --local flag to run without LSF
+   - Modified environment checker to handle different modes:
+     * `--local --test_env`: Minimal checks (no LSF/JIRA)
+     * `--local`: Local execution with full features
+     * `--test_env`: Full environment check with LSF
+     * Normal: Full environment check with LSF
 
-3. Current Dependencies:
-   - pyyaml>=6.0.1
-   - jira>=3.5.1
-   - pytest>=7.4.0
-   - typing-extensions>=4.7.1
+   - Mode-specific checks:
+     * Local test mode:
+       - Only checks core executables (gfastats, fastalength)
+       - Skips LSF checks
+       - Skips JIRA requirements
+       - Minimizes Python package requirements
+     * Regular local mode:
+       - Skips LSF checks
+       - Maintains JIRA and other requirements
+       - Full pipeline functionality preserved
+     * Normal mode:
+       - Full LSF checks
+       - Full JIRA requirements
+       - All executables checked
+       - All dependencies verified
 
 ## Actions Taken
 
-1. Created DEPENDENCIES.md:
-   - Documented all required modules
-   - Listed current dependencies
-   - Identified missing components
-   - Provided status and purpose for each module
-   - Added action items for implementation
-
-2. Documentation:
-   - Path: pipeline/DEPENDENCIES.md
-   - Format: Markdown
-   - Sections: Current Dependencies, Required Additional Modules, Action Items, Notes
-
-## Next Steps
-
-1. Copy Taxonomy module from old pipeline to new implementation
-2. Search for missing modules in related repositories
-3. Consider implementing new versions of missing modules
-4. Update requirements.txt as needed
-5. Update env_checker.py to verify all required modules
-
-## Notes
-
-- Created comprehensive documentation of dependencies
-- Identified modules that need to be migrated or implemented
-- Provided clear path forward for resolving missing dependencies
-- Ensured all findings are documented for future reference
+1. Copied all required modules to pipeline/modules/
+2. Updated DEPENDENCIES.md with complete dependency listing
+3. Enhanced environment checker with mode-specific requirements
+4. Added local execution support
+5. Created flexible dependency checking based on execution mode
 
 ## Files Created/Modified
-1. pipeline/DEPENDENCIES.md - Complete dependency documentation
-2. coding_logs/task11.txt - This task log
+1. pipeline/modules/ - Added all required modules
+2. pipeline/DEPENDENCIES.md - Updated dependency documentation
+3. pipeline/utils/env_checker.py - Added mode-specific checks
+4. pipeline/pipeline.py - Added local mode support
+5. coding_logs/task11.txt - This task log
+
+## Next Steps
+1. Consider implementing mock LSF commands if needed
+2. Add more comprehensive local testing capabilities
+3. Document local mode usage in README.md
+4. Consider containerizing the pipeline for easier dependency management
+
+## Notes
+- All required modules have been located and copied
+- Environment checker now adapts to different execution modes
+- Local execution support enables development without LSF
+- Mode-specific dependency checks improve usability

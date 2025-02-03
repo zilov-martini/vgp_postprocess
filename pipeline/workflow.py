@@ -43,139 +43,140 @@ class PostProcessingWorkflow:
         """Add a job to the workflow"""
         self.jobs[job.name] = job
         
-    def create_post_processing_jobs(self, input_paths: Dict[str, str]) -> None:
+    def create_post_processing_jobs(self, input_paths: Dict[str, str], test_mode: bool = False) -> None:
         """Create the complete set of post-processing jobs based on Snakemake rules"""
         
-        # 1. Incorporate MT
-        mt_job = Job(
-            name="incorporate_mt",
-            command=f"python scripts/incorporate_mt.py {input_paths['input_fasta']} {input_paths['mt_fasta']}",
-            resources={"mem_mb": 5000 * self.memory_multiplier},
-            input_files=[input_paths['input_fasta']],
-            output_files=[input_paths['mt_incorporated_fasta']]
-        )
-        self.add_job(mt_job)
+        if not test_mode:
+            # 1. Incorporate MT
+            mt_job = Job(
+                name="incorporate_mt",
+                command=f"python scripts/incorporate_mt.py {input_paths['input_fasta']} {input_paths['mt_fasta']}",
+                resources={"mem_mb": 5000 * self.memory_multiplier},
+                input_files=[input_paths['input_fasta']],
+                output_files=[input_paths['mt_incorporated_fasta']]
+            )
+            self.add_job(mt_job)
 
-        # 2. Combine haplotig files
-        combine_job = Job(
-            name="combine_haplotigs",
-            command=f"python scripts/combine_post_processing_haplotig_files.py {input_paths['mt_incorporated_fasta']}",
-            dependencies=[mt_job],
-            resources={"mem_mb": 5000 * self.memory_multiplier},
-            input_files=[input_paths['mt_incorporated_fasta']],
-            output_files=[input_paths['combined_fasta']]
-        )
-        self.add_job(combine_job)
+        if not test_mode:
+            # 2. Combine haplotig files
+            combine_job = Job(
+                name="combine_haplotigs",
+                command=f"python scripts/combine_post_processing_haplotig_files.py {input_paths['mt_incorporated_fasta']}",
+                dependencies=[mt_job],
+                resources={"mem_mb": 5000 * self.memory_multiplier},
+                input_files=[input_paths['mt_incorporated_fasta']],
+                output_files=[input_paths['combined_fasta']]
+            )
+            self.add_job(combine_job)
 
-        # 3. Scrub assembly
-        scrub_job = Job(
-            name="scrub_assembly",
-            command=f"python scripts/scrub_short_contigs.py --input {input_paths['combined_fasta']} --output {input_paths['scrubbed_fasta']}",
-            dependencies=[combine_job],
-            resources={"mem_mb": 5000 * self.memory_multiplier},
-            input_files=[input_paths['combined_fasta']],
-            output_files=[input_paths['scrubbed_fasta']]
-        )
-        self.add_job(scrub_job)
+            # 3. Scrub assembly
+            scrub_job = Job(
+                name="scrub_assembly",
+                command=f"python scripts/scrub_short_contigs.py --input {input_paths['combined_fasta']} --output {input_paths['scrubbed_fasta']}",
+                dependencies=[combine_job],
+                resources={"mem_mb": 5000 * self.memory_multiplier},
+                input_files=[input_paths['combined_fasta']],
+                output_files=[input_paths['scrubbed_fasta']]
+            )
+            self.add_job(scrub_job)
 
-        # 4. Trim Ns
-        trim_job = Job(
-            name="trim_Ns",
-            command=f"python scripts/trim_Ns.py {input_paths['scrubbed_fasta']} {input_paths['trim_out']}",
-            dependencies=[scrub_job],
-            resources={"mem_mb": 5000 * self.memory_multiplier},
-            input_files=[input_paths['scrubbed_fasta']],
-            output_files=[input_paths['trim_out'], input_paths['trimmed_fasta']]
-        )
-        self.add_job(trim_job)
+        # Core processing jobs (always included)
 
-        # 5. Clip regions
-        clip_job = Job(
-            name="clip_regions",
-            command=f"python scripts/clip_regions.py {input_paths['trimmed_fasta']} {input_paths['trim_out']} {input_paths['final_fasta']}",
-            dependencies=[trim_job],
-            resources={"mem_mb": 5000 * self.memory_multiplier},
-            input_files=[input_paths['trimmed_fasta'], input_paths['trim_out']],
-            output_files=[input_paths['final_fasta']]
-        )
-        self.add_job(clip_job)
-
-        # 6. Calculate lengths
+        # 1. Calculate lengths
+        last_job = mt_job if not test_mode else None
         lengths_job = Job(
             name="fastalength_sorted",
-            command=f"fastalength {input_paths['final_fasta']} | sort -nr > {input_paths['lengths_file']}",
-            dependencies=[clip_job],
+            command=f"python scripts/sequence_length.py {input_paths['input_fasta']} | sort -nr > {input_paths['lengths_file']}",
+            dependencies=[last_job] if last_job else [],
             resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['final_fasta']],
+            input_files=[input_paths['input_fasta']],
             output_files=[input_paths['lengths_file']]
         )
         self.add_job(lengths_job)
 
-        # 7. Chromosome audit
+        # 2. Chromosome audit
         chr_audit_job = Job(
             name="chr_audit",
-            command=f"python scripts/chromosome_audit.py {input_paths['final_fasta']} {input_paths['chr_list']}",
-            dependencies=[clip_job],
+            command=f"python scripts/chromosome_audit.py {input_paths['input_fasta']} {input_paths['chr_list']}",
+            dependencies=[last_job] if last_job else [],
             resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['final_fasta'], input_paths['chr_list']],
+            input_files=[input_paths['input_fasta'], input_paths['chr_list']],
             output_files=[input_paths['chr_audit_out']]
         )
         self.add_job(chr_audit_job)
 
-        # 8. VGP stats
-        stats_job = Job(
-            name="gather_vgp_stats",
-            command=f"python scripts/gather_vgp_stats.py {input_paths['final_fasta']}",
-            dependencies=[clip_job],
-            resources={"mem_mb": 10000 * self.memory_multiplier},
-            input_files=[input_paths['final_fasta']],
-            output_files=[input_paths['stats_out']]
+        # 3. Trim Ns
+        trim_job = Job(
+            name="trim_Ns",
+            command=f"python scripts/trim_Ns.py {input_paths['input_fasta']} {input_paths['trim_out']}",
+            dependencies=[last_job] if last_job else [],
+            resources={"mem_mb": 5000 * self.memory_multiplier},
+            input_files=[input_paths['input_fasta']],
+            output_files=[input_paths['trim_out'], input_paths['trimmed_fasta']]
         )
-        self.add_job(stats_job)
+        self.add_job(trim_job)
 
-        # 9. Gfastats
-        gfastats_job = Job(
-            name="gfastats",
-            command=f"gfastats {input_paths['final_fasta']} > {input_paths['gfastats_out']}",
-            dependencies=[clip_job],
-            resources={"mem_mb": 10000 * self.memory_multiplier},
-            input_files=[input_paths['final_fasta']],
-            output_files=[input_paths['gfastats_out']]
-        )
-        self.add_job(gfastats_job)
+        if not test_mode:
+            # Add remaining jobs for full pipeline mode
+            clip_job = Job(
+                name="clip_regions",
+                command=f"python scripts/clip_regions.py {input_paths['trimmed_fasta']} {input_paths['trim_out']} {input_paths['final_fasta']}",
+                dependencies=[trim_job],
+                resources={"mem_mb": 5000 * self.memory_multiplier},
+                input_files=[input_paths['trimmed_fasta'], input_paths['trim_out']],
+                output_files=[input_paths['final_fasta']]
+            )
+            self.add_job(clip_job)
 
-        # 10. Prepare submission
-        submission_job = Job(
-            name="submission_text",
-            command=f"python scripts/submission_text_maker.py {input_paths['final_fasta']} {input_paths['chr_list']}",
-            dependencies=[chr_audit_job],
-            resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['final_fasta'], input_paths['chr_list']],
-            output_files=[input_paths['submission_text']]
-        )
-        self.add_job(submission_job)
+            stats_job = Job(
+                name="gather_vgp_stats",
+                command=f"python scripts/gather_vgp_stats.py {input_paths['final_fasta']}",
+                dependencies=[clip_job],
+                resources={"mem_mb": 10000 * self.memory_multiplier},
+                input_files=[input_paths['final_fasta']],
+                output_files=[input_paths['stats_out']]
+            )
+            self.add_job(stats_job)
 
-        # 11. Ready files for submission
-        ready_job = Job(
-            name="ready_files_for_submission",
-            command=f"python scripts/ready_files_for_submission.py {self.ticket_id}",
-            dependencies=[submission_job, stats_job, gfastats_job],
-            resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['submission_text'], input_paths['stats_out'], input_paths['gfastats_out']],
-            output_files=[input_paths['ready_flag']]
-        )
-        self.add_job(ready_job)
+            gfastats_job = Job(
+                name="gfastats",
+                command=f"gfastats {input_paths['final_fasta']} > {input_paths['gfastats_out']}",
+                dependencies=[clip_job],
+                resources={"mem_mb": 10000 * self.memory_multiplier},
+                input_files=[input_paths['final_fasta']],
+                output_files=[input_paths['gfastats_out']]
+            )
+            self.add_job(gfastats_job)
 
-        # 12. Upload to Jira
-        upload_job = Job(
-            name="upload_post_processing_results_to_jira",
-            command=f"python scripts/upload_post_processing_results_to_jira.py {self.ticket_id}",
-            dependencies=[ready_job],
-            resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['ready_flag']],
-            output_files=[input_paths['upload_complete']]
-        )
-        self.add_job(upload_job)
+            submission_job = Job(
+                name="submission_text",
+                command=f"python scripts/submission_text_maker.py {input_paths['final_fasta']} {input_paths['chr_list']}",
+                dependencies=[chr_audit_job, clip_job],
+                resources={"mem_mb": 2000 * self.memory_multiplier},
+                input_files=[input_paths['final_fasta'], input_paths['chr_list']],
+                output_files=[input_paths['submission_text']]
+            )
+            self.add_job(submission_job)
+
+            ready_job = Job(
+                name="ready_files_for_submission",
+                command=f"python scripts/ready_files_for_submission.py {self.ticket_id}",
+                dependencies=[submission_job, stats_job, gfastats_job],
+                resources={"mem_mb": 2000 * self.memory_multiplier},
+                input_files=[input_paths['submission_text'], input_paths['stats_out'], input_paths['gfastats_out']],
+                output_files=[input_paths['ready_flag']]
+            )
+            self.add_job(ready_job)
+
+            upload_job = Job(
+                name="upload_post_processing_results_to_jira",
+                command=f"python scripts/upload_post_processing_results_to_jira.py {self.ticket_id}",
+                dependencies=[ready_job],
+                resources={"mem_mb": 2000 * self.memory_multiplier},
+                input_files=[input_paths['ready_flag']],
+                output_files=[input_paths['upload_complete']]
+            )
+            self.add_job(upload_job)
 
     def get_next_jobs(self) -> List[Job]:
         """Get list of jobs that are ready to run"""

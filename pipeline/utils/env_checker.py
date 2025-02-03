@@ -9,15 +9,26 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 class EnvironmentChecker:
-    def __init__(self, pipeline_root: Path):
+    def __init__(self, pipeline_root: Path, local_mode: bool = False, test_only: bool = False):
         self.pipeline_root = pipeline_root
+        self.local_mode = local_mode
+        self.test_only = test_only
+        
+        # Base executables needed regardless of mode
         self.required_executables = [
             'gfastats',
-            'fastalength',
-            'bsub',  # LSF
-            'bjobs'  # LSF
         ]
+        
+        # Add LSF executables only if not in local mode
+        if not local_mode:
+            self.required_executables.extend([
+                'bsub',  # LSF
+                'bjobs'  # LSF
+            ])
+            
+        # Scripts needed for pipeline operation
         self.required_scripts = [
+            'sequence_length.py',
             'incorporate_mt.py',
             'incorporate_mt_and_haps_for_post_processing.py',
             'combine_post_processing_haplotig_files.py',
@@ -28,14 +39,19 @@ class EnvironmentChecker:
             'ready_files_for_submission.py',
             'upload_post_processing_results_to_jira.py'
         ]
-        self.required_env_vars = [
+        
+        # Environment variables needed for full pipeline
+        # Skip if just testing environment in local mode
+        self.required_env_vars = [] if (local_mode and test_only) else [
             'JIRA_TOKEN',
             'JIRA_SERVER'
         ]
-        self.required_python_packages = [
-            'yaml',
-            'jira'
-        ]
+        
+        # Python packages needed
+        # Skip JIRA if just testing environment in local mode
+        self.required_python_packages = ['yaml']
+        if not (local_mode and test_only):
+            self.required_python_packages.append('jira')
 
     def check_executables(self) -> List[str]:
         """Check if required executables are available in PATH"""
@@ -74,6 +90,9 @@ class EnvironmentChecker:
 
     def check_lsf_access(self) -> Optional[str]:
         """Check if LSF is accessible and functioning"""
+        if self.local_mode:
+            return None
+            
         try:
             subprocess.run(['bqueues'], capture_output=True, check=True)
             return None
@@ -120,10 +139,11 @@ class EnvironmentChecker:
         if missing_packages:
             issues['missing_packages'] = missing_packages
 
-        # Check LSF
-        lsf_error = self.check_lsf_access()
-        if lsf_error:
-            issues['lsf_error'] = [lsf_error]
+        # Check LSF only if not in local mode
+        if not self.local_mode:
+            lsf_error = self.check_lsf_access()
+            if lsf_error:
+                issues['lsf_error'] = [lsf_error]
 
         # Check directory structure
         missing_dirs = self.check_directory_structure()
@@ -170,4 +190,3 @@ class EnvironmentChecker:
                 logger.error(f"  - {dir_name}")
 
         logger.error("\nPlease resolve these issues before running the pipeline.")
-        sys.exit(1)

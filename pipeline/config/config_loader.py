@@ -35,6 +35,9 @@ class ConfigLoader:
         'memory_multiplier': 1.0,
         'default_queue': 'normal',
         'retry_attempts': 3,
+        'test_mode': False,
+        'test_ticket': 'GRIT-270',
+        'test_output_dir': 'pipeline/test_output',
         'logging': {
             'level': 'INFO',
             'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -204,6 +207,21 @@ class ConfigLoader:
     def temp_dir(self) -> str:
         """Get temporary directory path"""
         return str(self.config['paths'].get('temp_dir', 'pipeline/temp'))
+
+    @property
+    def test_mode(self) -> bool:
+        """Get test mode status"""
+        return bool(self.config.get('test_mode', False))
+
+    @property
+    def test_ticket(self) -> str:
+        """Get test ticket ID"""
+        return str(self.config.get('test_ticket', 'GRIT-270'))
+
+    @property
+    def test_output_dir(self) -> str:
+        """Get test output directory"""
+        return str(self.config.get('test_output_dir', 'pipeline/test_output'))
 
     # LSF Configuration Properties
     @property

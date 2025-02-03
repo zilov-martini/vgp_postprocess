@@ -1,0 +1,87 @@
+# Task 13: Test Mode Implementation
+
+## Original Request
+прочитай файлы в папке 'coding_logs/' и создадим тестовый режим в нашем новом пайплайне как в старом, перенесем этот функционал.
+
+## Implementation Summary
+
+Added test mode functionality to enable streamlined testing with minimal processing:
+
+### 1. Configuration Changes
+- Added test mode settings in config_loader.py:
+  * test_mode flag
+  * test_ticket default (GRIT-270)
+  * test_output_dir path
+- Added properties in ConfigLoader:
+  * test_mode
+  * test_ticket
+  * test_output_dir
+
+### 2. Pipeline Updates
+- Added --test command line argument
+- Modified ticket requirement logic to support test mode
+- Updated input path handling for test mode
+- Integrated test configuration with workflow
+
+### 3. Workflow Modifications
+- Separated core processing jobs (always included):
+  * fastalength calculation
+  * chromosome auditing
+  * N-base trimming
+- Conditional job creation for non-test operations:
+  * MT incorporation
+  * Haplotig combination
+  * Assembly scrubbing
+  * Submission preparation
+  * Jira integration
+
+## Files Modified
+1. pipeline/config/config_loader.py
+2. pipeline/pipeline.py
+3. pipeline/workflow.py
+
+## Usage Guide
+
+### Running Test Mode
+```bash
+# Basic test mode run
+python pipeline.py --test
+
+# Test with custom config
+python pipeline.py --test --config custom_config.yaml
+
+# Test with specific ticket
+python pipeline.py --test --ticket GRIT-123
+```
+
+### Input/Output Files
+
+Test mode requires:
+- Input files:
+  * Primary assembly FASTA: tolid.1.primary.curated.fa
+  * Chromosome list: tolid.1.primary.chromosome.list.csv
+
+Generates:
+- Output files:
+  * *.lengths - Sequence length information 
+  * *.chr_audit - Chromosome validation results
+  * *.trim_Ns.out - N-base processing logs
+  * *.trimmed.fa - N-trimmed assembly
+
+All output files are placed in the test output directory (default: pipeline/test_output).
+
+### Safety Considerations
+
+Test mode is safe to run on servers because:
+1. Uses separate test output directory
+2. Performs minimal processing (no submission/external integrations)
+3. Limited resource requirements
+4. No modifications to production data
+5. No JIRA ticket updates in test mode
+6. Operates on file copies rather than originals
+
+## Next Steps
+1. Add test mode documentation to README.md
+2. Create example test configuration
+3. Add test mode unit tests
+4. Consider containerizing test environment

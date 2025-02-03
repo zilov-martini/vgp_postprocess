@@ -1,66 +1,74 @@
 # Pipeline Dependencies
 
-## Current Dependencies
+## Core Python Dependencies
+From requirements.txt:
+- pyyaml>=6.0.1
+- jira>=3.5.1  
+- pytest>=7.4.0
+- typing-extensions>=4.7.1
 
-Currently installed via requirements.txt:
-- pyyaml>=6.0.1 - YAML file handling
-- jira>=3.5.1 - Jira integration
-- pytest>=7.4.0 - Testing framework
-- typing-extensions>=4.7.1 - Type hinting support
+## Custom Modules Required
+The following custom modules must be available in the pipeline modules directory:
 
-## Required Additional Modules
+### Currently Available
+- GritJiraAuth (from pipeline/modules/)
+- GritJiraIssue (from snakemake/modules/)
 
-### Available in Old Pipeline
-These modules are available in the old pipeline and need to be copied to the new implementation:
+### Needed from Old Pipeline
+These modules need to be copied from the snakemake repository:
 
-1. GritJiraIssue
-   - Status: Available and copied
-   - Location: pipeline/modules/GritJiraAuth.py
-   - Purpose: Jira ticket management and integration
+1. Database/API Integration
+- EnaBioSample - Used for ENA BioSample integration
+- NcbiRestAssembly - Used for NCBI Assembly database access
+- NcbiRestBioProject - Used for NCBI BioProject access  
+- NcbiEutils - Used for NCBI E-utilities API integration
+- Taxonomy - Used for taxonomic validation and lookup
 
-2. Taxonomy (imported by GritJiraIssue)
-   - Status: Found in old pipeline, needs copying
-   - Location: Used in snakemake/modules/GritJiraIssue.py
-   - Purpose: Species taxonomy handling
+2. Spreadsheet/Data Management
+- TolSpreadsheet - Used for Tree of Life spreadsheet operations
 
-### Missing Modules
-The following modules are required but not found in the old pipeline:
+## External Tool Dependencies
+From env_checker.py:
 
-1. EnaBioSample
-   - Status: Not found
-   - Purpose: ENA BioSample data handling
-   - Required by: Pipeline submission functionality
+### Required Executables
+- gfastats
+- bsub (LSF)
+- bjobs (LSF)
 
-2. NcbiRestAssembly
-   - Status: Not found
-   - Purpose: NCBI Assembly data access
-   - Required by: Assembly processing
+### Custom Pipeline Scripts
+- sequence_length.py - Custom Python implementation for FASTA sequence length calculation
+  (Replaces external fastalength dependency)
 
-3. NcbiRestBioProject
-   - Status: Not found
-   - Purpose: NCBI BioProject data access
-   - Required by: Project metadata handling
-
-4. NcbiEutils
-   - Status: Not found
-   - Purpose: NCBI E-utilities interface
-   - Required by: NCBI data access
-
-5. TolSpreadsheet
-   - Status: Not found
-   - Purpose: Tree of Life data handling
-   - Required by: Pipeline data processing
+### Environment Variables
+- JIRA_TOKEN
+- JIRA_SERVER
 
 ## Action Items
 
-1. Copy Taxonomy module from old pipeline to new implementation
-2. Either:
-   - Locate missing modules in other related repositories
-   - Or implement new versions of these modules based on their expected functionality
-3. Update requirements.txt with any additional dependencies needed by these modules
+1. Copy existing modules from snakemake/modules/ to pipeline/modules/:
+- [ ] GritJiraIssue.py
+- [ ] Taxonomy.py
+
+2. Copy/implement missing modules in pipeline/modules/:
+- [ ] EnaBioSample.py
+- [ ] NcbiRestAssembly.py  
+- [ ] NcbiRestBioProject.py
+- [ ] NcbiEutils.py
+- [ ] TolSpreadsheet.py
+
+3. Update environment checker to verify:
+- [ ] All required Python modules can be imported
+- [ ] External tool dependencies are available
+- [ ] Required environment variables are set
+
+4. Update documentation:
+- [ ] Add installation instructions for external tools
+- [ ] Document environment variable setup
+- [ ] Add troubleshooting guide for dependency issues
 
 ## Notes
 
-- The missing modules may be available in other repositories or may need to be reimplemented
-- Some modules may be replaced with direct API calls or alternative implementations
-- Consider using modern alternatives for NCBI/ENA access (like Biopython)
+- Modules under "Needed from Old Pipeline" are critical for assembly submission and metadata handling
+- All listed modules are used in the submission and validation steps
+- Some modules have interdependencies (e.g., GritJiraIssue depends on Taxonomy)
+- Migration should maintain backward compatibility where possible

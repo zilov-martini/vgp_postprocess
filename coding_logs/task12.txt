@@ -1,0 +1,84 @@
+# Task 12: Pipeline Test vs Production Analysis
+
+## Original Prompt
+Please analyze the previous pipeline execution by examining 'snakemake/scripts/post_process_rc.snakefile' and 'snakemake/' directory. Compare the test run with normal execution and provide:
+
+1. The steps and workflow stages included in the test run
+2. Input samples and files used
+3. Expected test outputs and results  
+4. Key differences between test and production execution modes
+
+## Analysis Performed
+
+### 1. Test Run Workflow Analysis
+- Examined post_process_rc.snakefile configuration
+- Analyzed test vs production rule paths
+- Identified test-specific configurations and parameters
+- Mapped file dependencies and outputs
+
+### 2. Core Processing Steps
+
+Test run includes minimal core processing:
+
+1. File Processing:
+   - Length calculation (fastalength)
+   - Chromosome auditing
+   - N-base trimming
+
+2. Input Requirements:
+   - Primary assembly: tolid.1.primary.curated.fa
+   - Haplotigs: tolid.1.additional_haplotigs.curated.fa
+   - Chromosome data: tolid.1.primary.chromosome.list.csv
+
+3. Test Output Files:
+   - *.lengths: Sequence length information
+   - *.chr_audit: Chromosome validation results
+   - *.trim_Ns.out: N-base processing logs
+
+### 3. Key Differences from Production
+
+Production vs Test Mode:
+
+| Feature | Test Mode | Production Mode |
+|---------|-----------|----------------|
+| Ticket | GRIT-270 (fixed) | User-provided ticket |
+| Working Directory | Test output directory | Curated tolid directory |
+| Jira Integration | None | Full integration |
+| Error Handling | Basic | Full with Jira updates |
+| File Submission | Skipped | Complete ENA/INSDC prep |
+| Stats Generation | Basic | Comprehensive |
+
+### 4. Configuration Management
+
+1. Test Configuration:
+   - Sets config['test'] = True
+   - Uses fixed test ticket (GRIT-270)
+   - Simplified resource allocation
+   - Minimal dependencies
+
+2. Production Configuration:
+   - Uses actual ticket information
+   - Full resource management
+   - Complete external integrations
+   - Comprehensive error handling
+
+## Files Analyzed
+1. snakemake/scripts/post_process_rc.snakefile
+   - Main pipeline configuration
+   - Rule definitions
+   - Test vs production logic
+
+2. snakemake/ directory structure
+   - Supporting scripts and modules
+   - Configuration files
+   - Test and production profiles
+
+## Conclusions
+
+The test mode provides a lightweight execution environment focused on core processing functionality while omitting external integrations and submissions. This allows for rapid testing and validation of basic pipeline operations without the overhead of full production requirements.
+
+## Next Steps
+1. Consider adding more validation steps to test mode
+2. Improve test coverage for edge cases
+3. Add documentation for test mode usage
+4. Consider containerized test environment

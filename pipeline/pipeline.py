@@ -49,7 +49,11 @@ def setup_logging(config=None):
 
 def get_input_paths(jira_issue, config: ConfigLoader) -> Dict[str, str]:
     """Determine input and output paths based on JIRA ticket"""
-    working_dir = jira_issue.get_curated_tolid_dir()
+    if config.test_mode:
+        working_dir = config.test_output_dir
+    else:
+        working_dir = jira_issue.get_curated_tolid_dir()
+    
     if not os.path.isdir(working_dir):
         os.makedirs(working_dir)
 
@@ -85,14 +89,14 @@ def validate_jira_ticket(jira_issue) -> None:
             'Please address that report and remove the label before post-processing.'
         )
 
-def test_environment() -> bool:
+def test_environment(local_mode: bool = False) -> bool:
     """Run environment checks and report results"""
     logger = setup_logging()
     logger.info("Running environment checks...")
     
-    # Initialize environment checker
+    # Initialize environment checker with local mode and test_only parameters
     pipeline_root = Path(__file__).parent
-    checker = EnvironmentChecker(pipeline_root)
+    checker = EnvironmentChecker(pipeline_root, local_mode=local_mode, test_only=True)
     
     # Run all checks
     issues = checker.run_all_checks()
@@ -106,15 +110,21 @@ def run_pipeline(args: argparse.Namespace) -> None:
     """Main pipeline execution function"""
     # Handle environment testing
     if args.test_env:
-        sys.exit(0 if test_environment() else 1)
+        sys.exit(0 if test_environment(args.local) else 1)
 
     # Load configuration
     config = ConfigLoader(args.config)
+    
+    # Set test mode if requested
+    if args.test:
+        config.config['test_mode'] = True
+        if not args.ticket:
+            args.ticket = config.test_ticket
     logger = setup_logging(config)
     
     try:
         # Test environment before proceeding
-        if not test_environment():
+        if not test_environment(args.local):
             raise RuntimeError("Environment check failed. Please fix the issues and try again.")
 
         # Import and initialize JIRA issue
@@ -135,7 +145,7 @@ def run_pipeline(args: argparse.Namespace) -> None:
         )
         
         # Create post-processing jobs
-        workflow.create_post_processing_jobs(input_paths)
+        workflow.create_post_processing_jobs(input_paths, test_mode=config.test_mode)
         
         # Initialize job manager
         job_manager = LSFJobManager(default_queue=config.default_queue) if not args.local else LocalJobManager()
@@ -191,12 +201,17 @@ def main():
         action="store_true",
         help="Test the environment for required dependencies and exit"
     )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Run pipeline in test mode with minimal processing"
+    )
     
     args = parser.parse_args()
     
     # Validate args
-    if not args.test_env and not args.ticket:
-        parser.error("--ticket is required unless running with --test_env")
+    if not args.test_env and not args.ticket and not args.test:
+        parser.error("--ticket is required unless running with --test_env or --test")
     
     run_pipeline(args)
 
