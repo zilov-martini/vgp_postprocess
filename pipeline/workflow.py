@@ -3,6 +3,8 @@ from enum import Enum
 from typing import List, Dict, Optional
 import os
 import subprocess
+from pathlib import Path
+import GritJiraIssue
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,6 +14,28 @@ class JobStatus(Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+class AssemblyType(Enum):
+    """Assembly types supported by the pipeline"""
+    STANDARD = "standard"  # Regular diploid assembly
+    GENOMEARK = "genomeark"  # GenomeArk submission
+    TEST = "test"  # Test mode
+    TEST_HAPLOID = "test_haploid"  # Haploid test mode
+    NO_CHR = "no_chr"  # No chromosome assembly
+    NO_H = "no_h"  # No haplotigs
+    NO_H_OR_CHR = "no_h_or_chr"  # No haplotigs or chromosomes
+
+class PipelineError(Exception):
+    """Base class for pipeline errors"""
+    pass
+
+class ValidationError(PipelineError):
+    """Raised when workflow validation fails"""
+    pass
+
+class ExecutionError(PipelineError):
+    """Raised when job execution fails"""
+    pass
 
 class Job:
     def __init__(self, name: str, command: str = None, dependencies: List['Job'] = None,
@@ -24,6 +48,7 @@ class Job:
         self.input_files = input_files or []
         self.output_files = output_files or []
         self.status = JobStatus.PENDING
+        self.error_message: Optional[str] = None
         
     def is_ready(self) -> bool:
         """Check if all dependencies are completed and input files exist"""
@@ -31,251 +56,189 @@ class Job:
             return False
         return all(os.path.exists(f) for f in self.input_files)
 
+    def set_failed(self, message: str) -> None:
+        """Mark job as failed with error message"""
+        self.status = JobStatus.FAILED
+        self.error_message = message
+
 class PostProcessingWorkflow:
     """Main workflow class for genome post-processing pipeline"""
     
-    def __init__(self, ticket_id: str, memory_multiplier: float = 1.0):
+    def __init__(self, ticket_id: str, memory_multiplier: float = 1.0,
+                 assembly_type: AssemblyType = AssemblyType.STANDARD):
         self.ticket_id = ticket_id
         self.memory_multiplier = memory_multiplier
+        self.assembly_type = assembly_type
         self.jobs: Dict[str, Job] = {}
+        self.working_dir = Path.cwd()
+        self.initial_haplotig_suffix = 'additional_haplotigs'
         
-    def add_job(self, job: Job) -> None:
-        """Add a job to the workflow"""
-        self.jobs[job.name] = job
+        # Initialize JIRA integration
+        try:
+            self.jira_issue = GritJiraIssue.GritJiraIssue(ticket_id)
+        except Exception as e:
+            raise ValidationError(f"Failed to initialize JIRA: {str(e)}")
         
-    def create_post_processing_jobs(self, input_paths: Dict[str, str], test_mode: bool = False) -> None:
-        """Create the complete set of post-processing jobs based on Snakemake rules"""
+    def validate_setup(self) -> None:
+        """Validate workflow setup before running"""
+        # Check for abnormal contamination report
+        if 'abnormal_contamination_report' in self.jira_issue.get_labels():
+            raise ValidationError(
+                "This ticket has an abnormal_contamination_report label set. "
+                "Please address that report and remove the label before post-processing."
+            )
         
-        if not test_mode:
-            # 1. Incorporate MT
-            mt_job = Job(
-                name="incorporate_mt",
-                command=f"python scripts/incorporate_mt.py {input_paths['input_fasta']} {input_paths['mt_fasta']}",
-                resources={"mem_mb": 5000 * self.memory_multiplier},
-                input_files=[input_paths['input_fasta']],
-                output_files=[input_paths['mt_incorporated_fasta']]
-            )
-            self.add_job(mt_job)
+        # Set haplotig suffix based on JIRA config
+        if self.jira_issue.yaml_key_is_true('combine_for_curation'):
+            self.initial_haplotig_suffix = 'all_haplotigs'
+            
+        # Update assembly type if scaffold level
+        if 'scaffold_level' in self.jira_issue.get_labels():
+            if self.assembly_type not in [AssemblyType.TEST, AssemblyType.TEST_HAPLOID]:
+                self.assembly_type = AssemblyType.NO_CHR
 
-        if not test_mode:
-            # 2. Combine haplotig files
-            combine_job = Job(
-                name="combine_haplotigs",
-                command=f"python scripts/combine_post_processing_haplotig_files.py {input_paths['mt_incorporated_fasta']}",
-                dependencies=[mt_job],
-                resources={"mem_mb": 5000 * self.memory_multiplier},
-                input_files=[input_paths['mt_incorporated_fasta']],
-                output_files=[input_paths['combined_fasta']]
-            )
-            self.add_job(combine_job)
+    def validate_workflow(self) -> None:
+        """Validate workflow configuration and dependencies"""
+        # Check all jobs have commands
+        for job in self.jobs.values():
+            if not job.command:
+                raise ValidationError(f"Job {job.name} has no command")
+        
+        # Check for circular dependencies
+        visited = set()
+        path: List[str] = []
+        
+        def check_circular(job_name: str) -> None:
+            if job_name in path:
+                cycle = ' -> '.join(path[path.index(job_name):] + [job_name])
+                raise ValidationError(f"Circular dependency detected: {cycle}")
+            if job_name in visited:
+                return
+            visited.add(job_name)
+            path.append(job_name)
+            job = self.jobs[job_name]
+            for dep in job.dependencies:
+                check_circular(dep.name)
+            path.pop()
+        
+        for job_name in self.jobs:
+            check_circular(job_name)
 
-            # 3. Scrub assembly
-            scrub_job = Job(
-                name="scrub_assembly",
-                command=f"python scripts/scrub_short_contigs.py --input {input_paths['combined_fasta']} --output {input_paths['scrubbed_fasta']}",
-                dependencies=[combine_job],
-                resources={"mem_mb": 5000 * self.memory_multiplier},
-                input_files=[input_paths['combined_fasta']],
-                output_files=[input_paths['scrubbed_fasta']]
-            )
-            self.add_job(scrub_job)
+    def run(self, job_manager) -> None:
+        """Execute the workflow using provided job manager"""
+        logger.info(f"Starting workflow for ticket {self.ticket_id}")
+        
+        try:
+            # Initial validation
+            self.validate_setup()
+            self.validate_workflow()
+            
+            # Main execution loop
+            while True:
+                # Get next batch of ready jobs
+                next_jobs = self.get_next_jobs()
+                
+                if not next_jobs:
+                    # Check for completion or failure
+                    failed_jobs = [j for j in self.jobs.values() if j.status == JobStatus.FAILED]
+                    if failed_jobs:
+                        errors = '\n'.join(f"{j.name}: {j.error_message}" for j in failed_jobs)
+                        raise ExecutionError(f"Workflow failed:\n{errors}")
+                        
+                    if all(j.status == JobStatus.COMPLETED for j in self.jobs.values()):
+                        logger.info("Workflow completed successfully")
+                        self._handle_success()
+                        return
+                        
+                    if any(j.status == JobStatus.RUNNING for j in self.jobs.values()):
+                        job_manager.monitor_jobs()
+                        continue
+                        
+                    raise ExecutionError("Workflow deadlocked: no jobs ready but not all completed")
+                
+                # Submit ready jobs
+                for job in next_jobs:
+                    try:
+                        logger.info(f"Submitting job: {job.name}")
+                        job_manager.submit_job(job)
+                    except Exception as e:
+                        job.set_failed(str(e))
+                        raise ExecutionError(f"Failed to submit job {job.name}: {str(e)}")
+                
+                # Monitor running jobs
+                job_manager.monitor_jobs()
+                
+        except Exception as e:
+            self._handle_failure(str(e))
+            raise
 
-        # Core processing jobs (always included)
+    def _handle_success(self) -> None:
+        """Handle successful workflow completion"""
+        # Remove error label if present
+        if 'post_processing_error' in self.jira_issue.get_labels():
+            self.jira_issue.remove_label('post_processing_error')
+            
+        # Add completion comment
+        self.jira_issue.add_comment('Post processing completed successfully')
 
-        # 1. Calculate lengths
-        last_job = mt_job if not test_mode else None
-        lengths_job = Job(
-            name="fastalength_sorted",
-            command=f"python scripts/sequence_length.py {input_paths['input_fasta']} | sort -nr > {input_paths['lengths_file']}",
-            dependencies=[last_job] if last_job else [],
-            resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['input_fasta']],
-            output_files=[input_paths['lengths_file']]
-        )
-        self.add_job(lengths_job)
-
-        # 2. Chromosome audit
-        chr_audit_job = Job(
-            name="chr_audit",
-            command=f"python scripts/chromosome_audit.py {input_paths['input_fasta']} {input_paths['chr_list']}",
-            dependencies=[last_job] if last_job else [],
-            resources={"mem_mb": 2000 * self.memory_multiplier},
-            input_files=[input_paths['input_fasta'], input_paths['chr_list']],
-            output_files=[input_paths['chr_audit_out']]
-        )
-        self.add_job(chr_audit_job)
-
-        # 3. Trim Ns
-        trim_job = Job(
-            name="trim_Ns",
-            command=f"python scripts/trim_Ns.py {input_paths['input_fasta']} {input_paths['trim_out']}",
-            dependencies=[last_job] if last_job else [],
-            resources={"mem_mb": 5000 * self.memory_multiplier},
-            input_files=[input_paths['input_fasta']],
-            output_files=[input_paths['trim_out'], input_paths['trimmed_fasta']]
-        )
-        self.add_job(trim_job)
-
-        if not test_mode:
-            # Add remaining jobs for full pipeline mode
-            clip_job = Job(
-                name="clip_regions",
-                command=f"python scripts/clip_regions.py {input_paths['trimmed_fasta']} {input_paths['trim_out']} {input_paths['final_fasta']}",
-                dependencies=[trim_job],
-                resources={"mem_mb": 5000 * self.memory_multiplier},
-                input_files=[input_paths['trimmed_fasta'], input_paths['trim_out']],
-                output_files=[input_paths['final_fasta']]
-            )
-            self.add_job(clip_job)
-
-            stats_job = Job(
-                name="gather_vgp_stats",
-                command=f"python scripts/gather_vgp_stats.py {input_paths['final_fasta']}",
-                dependencies=[clip_job],
-                resources={"mem_mb": 10000 * self.memory_multiplier},
-                input_files=[input_paths['final_fasta']],
-                output_files=[input_paths['stats_out']]
-            )
-            self.add_job(stats_job)
-
-            gfastats_job = Job(
-                name="gfastats",
-                command=f"scripts/gfastats {input_paths['final_fasta']} > {input_paths['gfastats_out']}",
-                dependencies=[clip_job],
-                resources={"mem_mb": 10000 * self.memory_multiplier},
-                input_files=[input_paths['final_fasta']],
-                output_files=[input_paths['gfastats_out']]
-            )
-            self.add_job(gfastats_job)
-
-            submission_job = Job(
-                name="submission_text",
-                command=f"python scripts/submission_text_maker.py {input_paths['final_fasta']} {input_paths['chr_list']}",
-                dependencies=[chr_audit_job, clip_job],
-                resources={"mem_mb": 2000 * self.memory_multiplier},
-                input_files=[input_paths['final_fasta'], input_paths['chr_list']],
-                output_files=[input_paths['submission_text']]
-            )
-            self.add_job(submission_job)
-
-            ready_job = Job(
-                name="ready_files_for_submission",
-                command=f"python scripts/ready_files_for_submission.py {self.ticket_id}",
-                dependencies=[submission_job, stats_job, gfastats_job],
-                resources={"mem_mb": 2000 * self.memory_multiplier},
-                input_files=[input_paths['submission_text'], input_paths['stats_out'], input_paths['gfastats_out']],
-                output_files=[input_paths['ready_flag']]
-            )
-            self.add_job(ready_job)
-
-            upload_job = Job(
-                name="upload_post_processing_results_to_jira",
-                command=f"python scripts/upload_post_processing_results_to_jira.py {self.ticket_id}",
-                dependencies=[ready_job],
-                resources={"mem_mb": 2000 * self.memory_multiplier},
-                input_files=[input_paths['ready_flag']],
-                output_files=[input_paths['upload_complete']]
-            )
-            self.add_job(upload_job)
+    def _handle_failure(self, error_msg: str) -> None:
+        """Handle workflow failure"""
+        self.jira_issue.add_label('post_processing_error')
+        self.jira_issue.add_comment(f'Post processing failed: {error_msg}')
 
     def get_next_jobs(self) -> List[Job]:
         """Get list of jobs that are ready to run"""
         return [job for job in self.jobs.values() 
                 if job.status == JobStatus.PENDING and job.is_ready()]
     
-    def update_job_status(self, job_name: str, status: JobStatus) -> None:
+    def update_job_status(self, job_name: str, status: JobStatus, error_msg: Optional[str] = None) -> None:
         """Update status of a job"""
         if job_name in self.jobs:
-            self.jobs[job_name].status = status
+            job = self.jobs[job_name]
+            job.status = status
+            if error_msg and status == JobStatus.FAILED:
+                job.error_message = error_msg
             logger.info(f"Job {job_name} status updated to {status.value}")
 
-    def validate_workflow(self) -> bool:
-        """Validate workflow configuration and dependencies"""
-        for job in self.jobs.values():
-            # Check command exists
-            if not job.command:
-                logger.error(f"Job {job.name} has no command")
-                return False
-            
-            # Check circular dependencies
-            visited = set()
-            def check_circular(job_name: str, path: List[str]) -> bool:
-                if job_name in path:
-                    logger.error(f"Circular dependency detected: {' -> '.join(path + [job_name])}")
-                    return False
-                if job_name in visited:
-                    return True
-                visited.add(job_name)
-                job = self.jobs[job_name]
-                for dep in job.dependencies:
-                    if not check_circular(dep.name, path + [job_name]):
-                        return False
-                return True
-            
-            if not check_circular(job.name, []):
-                return False
-
-        return True
-
-    def run(self, job_manager) -> bool:
-        """Execute the workflow using provided job manager"""
-        logger.info(f"Starting workflow for ticket {self.ticket_id}")
-        
-        # Validate workflow before running
-        if not self.validate_workflow():
-            logger.error("Workflow validation failed")
-            return False
-        
-        while True:
-            next_jobs = self.get_next_jobs()
-            if not next_jobs:
-                # Check if all jobs completed or some failed
-                if any(job.status == JobStatus.FAILED for job in self.jobs.values()):
-                    logger.error("Workflow failed: some jobs failed to complete")
-                    return False
-                if all(job.status == JobStatus.COMPLETED for job in self.jobs.values()):
-                    logger.info("Workflow completed successfully")
-                    return True
-                # If no jobs are ready but some are still running, wait for job manager
-                if any(job.status == JobStatus.RUNNING for job in self.jobs.values()):
-                    job_manager.monitor_jobs()
-                    continue
-                logger.error("Workflow deadlocked: no jobs ready but not all completed")
-                return False
-                    
-            for job in next_jobs:
-                try:
-                    logger.info(f"Submitting job: {job.name}")
-                    job_manager.submit_job(job)
-                except Exception as e:
-                    logger.error(f"Failed to submit job {job.name}: {e}")
-                    return False
-            
-            # Monitor running jobs
-            job_manager.monitor_jobs()
-
 if __name__ == "__main__":
-    # Example usage
-    input_paths = {
-        "input_fasta": "input.fa",
-        "mt_fasta": "mt.fa",
-        "mt_incorporated_fasta": "mt_incorporated.fa",
-        "combined_fasta": "combined.fa",
-        "scrubbed_fasta": "scrubbed.fa",
-        "trim_out": "trim.out",
-        "trimmed_fasta": "trimmed.fa",
-        "final_fasta": "final.fa",
-        "lengths_file": "lengths.txt",
-        "chr_list": "chromosomes.csv",
-        "chr_audit_out": "chr_audit.txt",
-        "stats_out": "stats.txt",
-        "gfastats_out": "gfastats.txt",
-        "submission_text": "submission.txt",
-        "ready_flag": "ready.flag",
-        "upload_complete": "upload.complete"
+    # Example configurations for different assembly types
+    configs = {
+        "standard": {
+            "type": AssemblyType.STANDARD,
+            "ticket": "GRIT-123",
+            "description": "Regular diploid assembly"
+        },
+        "haploid": {
+            "type": AssemblyType.NO_H,
+            "ticket": "GRIT-124",
+            "description": "Haploid assembly"
+        },
+        "scaffold": {
+            "type": AssemblyType.NO_CHR,
+            "ticket": "GRIT-125",
+            "description": "Scaffold-level assembly"
+        },
+        "test": {
+            "type": AssemblyType.TEST,
+            "ticket": "GRIT-270",
+            "description": "Test mode"
+        },
+        "test_haploid": {
+            "type": AssemblyType.TEST_HAPLOID,
+            "ticket": "GRIT-352",
+            "description": "Haploid test mode"
+        }
     }
     
-    workflow = PostProcessingWorkflow("GRIT-123")
-    workflow.create_post_processing_jobs(input_paths)
-    # Would need proper job manager instance in practice:
-    # workflow.run(job_manager)
+    # Example usage
+    for name, config in configs.items():
+        logger.info(f"\nTesting {name} configuration: {config['description']}")
+        try:
+            workflow = PostProcessingWorkflow(
+                ticket_id=config['ticket'],
+                assembly_type=config['type']
+            )
+            workflow.validate_setup()
+            logger.info(f"{name} configuration validated successfully")
+        except Exception as e:
+            logger.error(f"{name} configuration validation failed: {str(e)}")

@@ -1,0 +1,60 @@
+# Task 18: Assembly Type Support Implementation - Step 1
+
+## Original Request
+Split implementation of assembly type support into three steps for better manageability.
+
+## Step 1: Core Assembly Type Classes and Configuration
+
+### Changes Made
+
+1. Added AssemblyType Enumeration:
+```python
+class AssemblyType(Enum):
+    STANDARD = "standard"      # Regular diploid assembly
+    GENOMEARK = "genomeark"   # GenomeArk submission
+    TEST = "test"             # Test mode
+    TEST_HAPLOID = "test_haploid"  # Haploid test mode
+    NO_CHR = "no_chr"         # No chromosome assembly
+    NO_H = "no_h"            # No haplotigs
+    NO_H_OR_CHR = "no_h_or_chr"  # No haplotigs or chromosomes
+```
+
+2. Updated Workflow Configuration:
+- Added assembly_type parameter to PostProcessingWorkflow initialization
+- Added haplotig suffix configuration
+- Added working directory management
+
+3. Added File Detection Methods:
+```python
+def detect_chromosome_files(self, assembly_name: str) -> Dict[str, List[str]]:
+    """Detect chromosome-related files in working directory"""
+```
+
+4. Added Assembly Property Helpers:
+```python
+def _is_haploid(self) -> bool
+def _is_scaffold_level(self) -> bool
+def _requires_haplotig_processing(self) -> bool
+```
+
+### Compatibility Notes
+
+The changes ensure compatibility with original Snakefile configurations:
+1. Matches all assembly types from post_process_rc.snakefile
+2. Preserves file pattern detection logic
+3. Maintains haplotig suffix configuration
+4. Supports the same working directory structure
+
+### Next Steps (Step 2)
+
+1. Implement processing rules for each assembly type:
+   - Core processing jobs
+   - Assembly-specific jobs
+   - Test mode jobs
+
+2. Add job creation methods:
+   - Haplotig processing
+   - Chromosome handling
+   - Assembly validation
+
+The basic framework is now in place for implementing the job creation and processing rules in Step 2.

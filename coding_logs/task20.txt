@@ -1,0 +1,152 @@
+# Task 20: Assembly Type Support Implementation - Step 3
+
+## Original Request
+Implement workflow execution and final integration for assembly type support.
+
+## Step 3: Workflow Execution and Integration
+
+### 1. Error Handling System
+
+Added custom exception classes:
+```python
+class PipelineError(Exception):
+    """Base class for pipeline errors"""
+    pass
+
+class ValidationError(PipelineError):
+    """Raised when workflow validation fails"""
+    pass
+
+class ExecutionError(PipelineError):
+    """Raised when job execution fails"""
+    pass
+```
+
+### 2. JIRA Integration
+
+1. Setup Validation:
+```python
+def validate_setup(self) -> None:
+    # Check for abnormal contamination report
+    if 'abnormal_contamination_report' in self.jira_issue.get_labels():
+        raise ValidationError(
+            "This ticket has an abnormal_contamination_report label set..."
+        )
+```
+
+2. Status Management:
+```python
+def _handle_success(self) -> None:
+    if 'post_processing_error' in self.jira_issue.get_labels():
+        self.jira_issue.remove_label('post_processing_error')
+    self.jira_issue.add_comment('Post processing completed successfully')
+
+def _handle_failure(self, error_msg: str) -> None:
+    self.jira_issue.add_label('post_processing_error')
+    self.jira_issue.add_comment(f'Post processing failed: {error_msg}')
+```
+
+### 3. Workflow Execution
+
+Enhanced run method with:
+1. Initial validation
+2. Job monitoring
+3. Status tracking
+4. Error handling
+5. Success/failure management
+
+```python
+def run(self, job_manager) -> None:
+    try:
+        self.validate_setup()
+        self.validate_workflow()
+        
+        while True:
+            next_jobs = self.get_next_jobs()
+            # ... job execution logic ...
+            
+    except Exception as e:
+        self._handle_failure(str(e))
+        raise
+```
+
+### 4. Assembly Type Examples
+
+Added comprehensive example configurations:
+```python
+configs = {
+    "standard": {
+        "type": AssemblyType.STANDARD,
+        "ticket": "GRIT-123",
+        "description": "Regular diploid assembly"
+    },
+    "haploid": {
+        "type": AssemblyType.NO_H,
+        "ticket": "GRIT-124",
+        "description": "Haploid assembly"
+    },
+    "scaffold": {
+        "type": AssemblyType.NO_CHR,
+        "ticket": "GRIT-125",
+        "description": "Scaffold-level assembly"
+    },
+    "test": {
+        "type": AssemblyType.TEST,
+        "ticket": "GRIT-270",
+        "description": "Test mode"
+    },
+    "test_haploid": {
+        "type": AssemblyType.TEST_HAPLOID,
+        "ticket": "GRIT-352",
+        "description": "Haploid test mode"
+    }
+}
+```
+
+### 5. Job Status Management
+
+Enhanced Job class with error tracking:
+```python
+class Job:
+    def __init__(self, ...):
+        self.error_message: Optional[str] = None
+    
+    def set_failed(self, message: str) -> None:
+        self.status = JobStatus.FAILED
+        self.error_message = message
+```
+
+## Final State Verification
+
+1. Assembly Type Support:
+   - All VGP assembly types supported
+   - Proper job creation per type
+   - Correct dependency management
+   - Appropriate resource allocation
+
+2. Error Handling:
+   - Validation errors
+   - Execution errors
+   - JIRA status management
+   - Clear error reporting
+
+3. Workflow Management:
+   - Job scheduling
+   - Status tracking
+   - Dependency resolution
+   - Resource management
+
+4. JIRA Integration:
+   - Label management
+   - Status updates
+   - Error reporting
+   - Success handling
+
+## Implementation Complete
+
+The assembly type support implementation is now complete with:
+1. Full type system (Step 1)
+2. Processing rules (Step 2)
+3. Execution management (Step 3)
+
+The system now handles all VGP assembly types consistently and reliably.

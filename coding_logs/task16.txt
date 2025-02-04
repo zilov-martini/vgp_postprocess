@@ -1,0 +1,129 @@
+# Task 16: Assembly Type Support Analysis
+
+## Original Request
+Analysis of how previous and current pipeline versions handle different assembly types including:
+- Two haplotype assemblies
+- Single haplotype assemblies 
+- Haploid assemblies
+- Scaffold-level vs chromosome-level
+
+## Analysis Results
+
+### 1. Assembly Type Detection & Configuration
+
+The pipeline handles different assembly types through:
+
+1. Configuration Flags:
+   - test_haploid: For haploid test cases
+   - no_assembly_haplotigs: For assemblies without haplotigs
+   - scaffold_level: For non-chromosome assemblies
+
+2. File Presence Checks:
+   - Checks for .primary.chromosome.list.csv
+   - Checks for .additional_haplotigs.curated.fa
+   - Checks for .all_haplotigs.curated.fa
+
+3. Label Detection:
+   - scaffold_level label disables chromosome processing
+   - abnormal_contamination_report blocks processing
+
+### 2. Processing Rules by Assembly Type
+
+1. Two Haplotype Assemblies (Default):
+   - Full processing with MT incorporation
+   - Haplotig combination
+   - Chromosome auditing for both haplotypes
+   - Complete submission preparation
+
+2. Single Haplotype Assemblies (post_process_no_h):
+   - Uses no_assembly_haplotigs parameter
+   - Skips haplotig processing
+   - Maintains chromosome validation
+   - Full submission support
+
+3. Haploid Assemblies (test_haploid):
+   - Simplified processing flow
+   - Single chromosome set validation
+   - Appropriate Jira ticket handling
+
+4. Scaffold-level Assemblies:
+   - Skips chromosome auditing
+   - Disables chromosome list processing
+   - Modified submission preparation
+   - Simplified statistics gathering
+
+### 3. Common Processing Steps
+
+All assembly types undergo:
+1. Basic QC:
+   - Length calculation
+   - N-base trimming
+   - Assembly statistics
+
+2. File Preparation:
+   - Consistent naming conventions
+   - Standard output formats
+   - Required metadata generation
+
+### 4. Implementation Details
+
+1. Input File Handling:
+   ```python
+   # Primary assembly always required
+   tolid.1.primary.curated.fa
+   
+   # Optional files based on assembly type
+   tolid.1.additional_haplotigs.curated.fa  # For diploid
+   tolid.1.primary.chromosome.list.csv      # For chromosome-level
+   ```
+
+2. Processing Flow:
+   ```
+   Input Files → Basic QC → Type-Specific Processing → Statistics → Submission
+   ```
+
+3. Resource Management:
+   - Memory scaling via multiplier
+   - Consistent for all assembly types
+   - Type-specific job configurations
+
+### 5. Pipeline Improvements
+
+Current Python implementation:
+1. Maintains flexibility:
+   - Modular processing steps
+   - Assembly type detection
+   - Conditional workflow execution
+
+2. Enhanced validation:
+   - Input file verification
+   - Assembly type checking
+   - Resource requirement validation
+
+3. Better error handling:
+   - Assembly-specific error cases
+   - Clear error reporting
+   - Appropriate cleanup
+
+### 6. Testing Strategy
+
+1. Unit Tests:
+   - Assembly type detection
+   - File presence verification
+   - Configuration validation
+
+2. Integration Tests:
+   - Different assembly scenarios
+   - Error handling
+   - Resource management
+
+## Conclusion
+
+The pipeline successfully handles all assembly types through:
+1. Flexible configuration options
+2. Dynamic workflow selection
+3. Appropriate resource allocation
+4. Type-specific processing rules
+5. Comprehensive validation
+
+This maintains compatibility with all VGP assembly types while ensuring accurate processing and submission preparation.

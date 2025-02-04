@@ -1,0 +1,109 @@
+# Task 19: Assembly Type Support Implementation - Step 2
+
+## Original Request
+Implement processing rules and job creation methods for different assembly types.
+
+## Step 2: Processing Rules and Job Creation
+
+### 1. Core Job Creation Structure
+
+Implemented modular job creation system:
+```python
+def create_post_processing_jobs(self, input_paths: Dict[str, str]) -> None:
+    # 1. Core processing jobs (always included)
+    last_job = self._add_core_processing_jobs(input_paths)
+    
+    # 2. Assembly-specific processing
+    if self.assembly_type == AssemblyType.TEST:
+        last_job = self._add_test_jobs(input_paths, last_job)
+    elif self.assembly_type == AssemblyType.TEST_HAPLOID:
+        last_job = self._add_haploid_test_jobs(input_paths, last_job)
+    else:
+        # Regular processing with variations
+        if not self._is_haploid():
+            last_job = self._add_mt_incorporation_jobs(input_paths, last_job)
+        ...
+```
+
+### 2. Implemented Job Types
+
+1. Core Processing:
+   - Length calculation
+   - N-base trimming
+   - Basic validation
+
+2. Assembly-Specific Jobs:
+   - MT incorporation for non-haploid
+   - Chromosome processing
+   - Haplotig handling
+   - Stats generation
+   - Submission preparation
+
+3. Testing Mode Jobs:
+   - Minimal processing set
+   - Basic validation
+   - No submission steps
+
+### 3. Job Dependencies
+
+Implemented proper dependency chaining:
+```python
+def _add_core_processing_jobs(self, input_paths: Dict[str, str]) -> Job:
+    lengths_job = Job(...)
+    trim_job = Job(
+        dependencies=[lengths_job],
+        ...
+    )
+```
+
+### 4. Resource Management
+
+Added consistent resource allocation:
+```python
+resources={"mem_mb": 5000 * self.memory_multiplier}
+```
+
+### 5. File Handling
+
+Implemented proper input/output tracking:
+```python
+input_files=[input_paths['input_fasta']],
+output_files=[input_paths['lengths_file']]
+```
+
+### Compatibility Notes
+
+1. Matches Snakefile Rules:
+   - Preserved all processing steps
+   - Maintained file dependencies
+   - Kept resource requirements
+
+2. Assembly Type Support:
+   - Standard diploid processing
+   - Haploid-specific flows
+   - Test mode variants
+   - Scaffold-level handling
+
+3. Error Prevention:
+   - Input file validation
+   - Dependency checking
+   - Resource verification
+
+### Next Steps (Step 3)
+
+1. Implement workflow execution:
+   - Job scheduling
+   - Status monitoring
+   - Error handling
+
+2. Add JIRA integration:
+   - Ticket updates
+   - Label management
+   - Status reporting
+
+3. Complete example usage:
+   - Document all modes
+   - Add configuration examples
+   - Provide testing guidelines
+
+The job creation system is now ready for the final step of implementation: workflow execution and integration.
